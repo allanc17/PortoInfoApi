@@ -59,6 +59,8 @@ dlldata.c
 BenchmarkDotNet.Artifacts/
 
 # .NET Core
+# Arquivos de configurações que podem conter segredos
+appsettings.Development.json
 project.lock.json
 project.fragment.lock.json
 artifacts/
