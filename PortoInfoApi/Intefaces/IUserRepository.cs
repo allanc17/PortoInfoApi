@@ -1,15 +1,15 @@
-﻿// Local: /Interfaces/IUserRepository.cs
-using PortoInfoApi.Models;
-using System.Threading.Tasks;
+﻿using PortoInfoApi.Models;
 
 namespace PortoInfoApi.Interfaces
 {
-    // A interface define o contrato: o que o repositório deve ser capaz de fazer.
     public interface IUserRepository
     {
-        // Todos os métodos de acesso a dados (I/O) são assíncronos (Task).
+        Task<IEnumerable<User>> GetAllUsersAsync();
+
+        Task<User?> GetByIdAsync(int id);
         Task<User?> GetByUsernameAsync(string username);
-        Task<IEnumerable<User>> GetAllAsync();
-        Task AddAsync(User user);
+        Task<User> AddAsync(User user);
+        Task<bool> UpdateAsync(User user);
+        Task<bool> DeleteAsync(int id);
     }
 }

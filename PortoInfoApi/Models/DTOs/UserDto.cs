@@ -1,11 +1,9 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace PortoInfoApi.Models
+namespace PortoInfoApi.Models.DTOs
 {
-    public class User
+    public class UserDto
     {
-        public int Id { get; set; }
-
         [Required]
         public required string Username { get; set; }
 

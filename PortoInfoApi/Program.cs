@@ -6,20 +6,17 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using Microsoft.Extensions.DependencyInjection;
-using System;
+using Microsoft.OpenApi.Models; 
+using System.Reflection; 
+
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- Configuração EF Core e Injeção de Dependência ---
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseInMemoryDatabase("UserDatabase"));
 
-// CORRIGIDO: O sistema agora sabe onde achar IUserRepository e UserService
 builder.Services.AddScoped<IUserRepository, UserRepository>();
-builder.Services.AddScoped<UserService>();
-
-// --- Configuração JWT (continua a mesma) ---
+builder.Services.AddScoped<UserService>(); 
 var key = Encoding.ASCII.GetBytes(builder.Configuration["Jwt:Key"]!);
 
 builder.Services.AddAuthentication(options =>
@@ -39,14 +36,33 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = false
     };
 });
-
-builder.Services.AddControllers();
-builder.Services.AddAuthorization();
-
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
-// ====================================================================
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "PortoInfoApi", Version = "v1" });
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "Insira o token JWT da seguinte forma: Bearer {token}",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
 
 builder.Services.AddControllers();
 builder.Services.AddAuthorization();
@@ -56,16 +72,9 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(); // Habilita a interface gráfica que você precisa acessar
+    app.UseSwaggerUI();
 }
-// SE VOCÊ AINDA TIVER PROBLEMAS, PODE TIRAR O IF TEMPORARIAMENTE.
 
-// ========================================================================
-
-// REMOVER OU COMENTAR TEMPORARIAMENTE: Evita o erro de redirecionamento HTTPS na porta 5136
-// app.UseHttpsRedirection(); 
-
-// Middleware de segurança (a ordem é importante!)
 app.UseAuthentication();
 app.UseAuthorization();
 

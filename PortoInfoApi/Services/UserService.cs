@@ -1,80 +1,96 @@
-﻿// Local: /Services/UserService.cs
-
-using PortoInfoApi.Interfaces;
+﻿using PortoInfoApi.Interfaces;
 using PortoInfoApi.Models;
-using BCrypt.Net; // Usado para hash de senha
-using System.Security.Claims;
-using System.IdentityModel.Tokens.Jwt; // Usado para JWT
+using PortoInfoApi.Models.DTOs;
 using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text;
+using BCrypt.Net;
 
 namespace PortoInfoApi.Services
 {
     public class UserService
     {
         private readonly IUserRepository _userRepository;
-        private readonly string _jwtSecret;
-
-        // O Service injeta o Repositório (Interface) e a Configuração (para pegar a chave JWT)
+        private readonly IConfiguration _configuration;
         public UserService(IUserRepository userRepository, IConfiguration configuration)
         {
             _userRepository = userRepository;
-            // Pega a chave secreta do appsettings.json
-            _jwtSecret = configuration["Jwt:Key"] ?? throw new InvalidOperationException("Chave JWT não configurada.");
+            _configuration = configuration;
         }
 
-        // --- Lógica de Registro (Assíncrona e Segura) ---
-        public async Task<User> RegisterAsync(User user)
-        {
-            // Validação de Negócio: Usuário já existe?
-            if (await _userRepository.GetByUsernameAsync(user.Username) != null)
-            {
-                throw new InvalidOperationException("Usuário já cadastrado.");
-            }
-
-            // SEGURANÇA: Cria o hash da senha (criptografia irreversível)
-            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(user.PasswordHash);
-
-            // Chama a camada de Repositório
-            await _userRepository.AddAsync(user);
-            return user;
-        }
-
-        // --- Lógica de Autenticação e Geração do Token JWT (Assíncrona) ---
-        public async Task<string?> AuthenticateAsync(string username, string password)
+        public async Task<User?> AuthenticateAsync(string username, string password)
         {
             var user = await _userRepository.GetByUsernameAsync(username);
 
-            // 1. Verifica se o usuário existe E se a senha digitada corresponde ao hash salvo
             if (user == null || !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
             {
-                return null; // Falha na autenticação
+                return null;
+            }
+            return user;
+        }
+        public async Task<User?> RegisterAsync(string username, string password, string role)
+        {
+            var existingUser = await _userRepository.GetByUsernameAsync(username);
+            if (existingUser != null)
+            {
+                return null;
+            }
+            string hashedPassword = BCrypt.Net.BCrypt.HashPassword(password);
+            var newUser = new User
+            {
+                Username = username,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+                Role = role
+            };
+
+            return await _userRepository.AddAsync(newUser);
+        }
+        public async Task<User?> GetByIdAsync(int id)
+        {
+            return await _userRepository.GetByIdAsync(id);
+        }
+        public async Task<bool> UpdateUserAsync(UserUpdateDto userDto)
+        {
+            var existingUser = await _userRepository.GetByIdAsync(userDto.Id);
+            if (existingUser == null)
+            {
+                return false;
             }
 
-            // 2. Se a autenticação OK, gera o Token JWT
+            if (!string.IsNullOrEmpty(userDto.Username))
+            {
+                existingUser.Username = userDto.Username;
+            }
+            if (!string.IsNullOrEmpty(userDto.PasswordHash))
+            {
+                existingUser.PasswordHash = BCrypt.Net.BCrypt.HashPassword(userDto.PasswordHash);
+            }
+            if (!string.IsNullOrEmpty(userDto.Role))
+            {
+                existingUser.Role = userDto.Role;
+            }
+
+            return await _userRepository.UpdateAsync(existingUser);
+        }
+        public string GenerateJwtToken(User user)
+        {
             var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.ASCII.GetBytes(_jwtSecret);
+            var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Key"]!);
 
             var tokenDescriptor = new SecurityTokenDescriptor
             {
-                // Claims são as informações do usuário que vão dentro do token
-                Subject = new ClaimsIdentity(new Claim[]
+                Subject = new ClaimsIdentity(new[]
                 {
-                    new Claim(ClaimTypes.Name, user.Username),
-                    new Claim(ClaimTypes.Role, user.Role) // Isso será usado no [Authorize(Roles="...")]
+                    new Claim(ClaimTypes.Name, user.Id.ToString()),
+                    new Claim(ClaimTypes.Role, user.Role)
                 }),
-                Expires = DateTime.UtcNow.AddHours(2), // Token expira em 2 horas
+                Expires = DateTime.UtcNow.AddHours(2),
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
             };
 
             var token = tokenHandler.CreateToken(tokenDescriptor);
-            return tokenHandler.WriteToken(token); // Retorna a string do token
-        }
-
-        // --- Lógica de Consulta (Assíncrona) ---
-        public async Task<IEnumerable<User>> GetAllUsersAsync()
-        {
-            return await _userRepository.GetAllAsync();
+            return tokenHandler.WriteToken(token);
         }
     }
 }

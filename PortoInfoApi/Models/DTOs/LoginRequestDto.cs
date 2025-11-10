@@ -1,18 +1,13 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace PortoInfoApi.Models
+namespace PortoInfoApi.Models.DTOs
 {
-    public class User
+    public class LoginRequestDto
     {
-        public int Id { get; set; }
-
         [Required]
         public required string Username { get; set; }
 
         [Required]
         public required string PasswordHash { get; set; }
-
-        [Required]
-        public required string Role { get; set; }
     }
 }

@@ -1,36 +1,64 @@
-﻿// Local: /Repository/UserRepository.cs
-using Microsoft.EntityFrameworkCore;
-using PortoInfoApi.Data;
+﻿using PortoInfoApi.Data;
 using PortoInfoApi.Interfaces;
 using PortoInfoApi.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace PortoInfoApi.Repository
 {
-    // A implementação do Repositório usa o AppDbContext para falar com o banco.
     public class UserRepository : IUserRepository
     {
         private readonly AppDbContext _context;
 
         public UserRepository(AppDbContext context)
         {
-            // O AppDbContext é injetado pelo Program.cs
             _context = context;
         }
 
-        public async Task AddAsync(User user)
+        public async Task<IEnumerable<User>> GetAllUsersAsync()
         {
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync(); // <-- Executa o INSERT no BD
+            return await _context.Users.ToListAsync();
         }
-
-        public async Task<IEnumerable<User>> GetAllAsync()
+        public async Task<User?> GetByIdAsync(int id)
         {
-            return await _context.Users.AsNoTracking().ToListAsync(); // <-- Executa o SELECT no BD
+            return await _context.Users.FindAsync(id);
         }
-
         public async Task<User?> GetByUsernameAsync(string username)
         {
-            return await _context.Users.SingleOrDefaultAsync(u => u.Username == username); // <-- Executa o SELECT no BD
+            return await _context.Users.FirstOrDefaultAsync(u => u.Username == username);
+        }
+        public async Task<User> AddAsync(User user)
+        {
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+            return user; 
+        }
+        public async Task<bool> UpdateAsync(User user)
+        {
+            var existingUser = await _context.Users.FindAsync(user.Id);
+
+            if (existingUser == null) return false;
+
+            _context.Entry(existingUser).CurrentValues.SetValues(user);
+
+            try
+            {
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return false;
+            }
+        }
+
+        public async Task<bool> DeleteAsync(int id)
+        {
+            var user = await _context.Users.FindAsync(id);
+            if (user == null) return false;
+
+            _context.Users.Remove(user);
+            await _context.SaveChangesAsync();
+            return true;
         }
     }
 }
